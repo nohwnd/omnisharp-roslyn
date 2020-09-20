@@ -177,6 +177,16 @@ namespace OmniSharp.Roslyn.CSharp.Services.Completion
                     string providerName = completion.GetProviderName();
                     switch (providerName)
                     {
+                        case CompletionItemExtensions.EmeddedLanguageCompletionProvider:
+                            // The Regex completion provider can change escapes based on whether
+                            // we're in a verbatim string or not
+                            {
+                                CompletionChange change = await completionService.GetChangeAsync(document, completion);
+                                Debug.Assert(typedSpan == change.TextChange.Span);
+                                insertText = change.TextChange.NewText!;
+                            }
+                            break;
+
                         case CompletionItemExtensions.InternalsVisibleToCompletionProvider:
                             // The IVT completer doesn't add extra things before the completion
                             // span, only assembly keys at the end if they exist.
@@ -403,13 +413,6 @@ namespace OmniSharp.Roslyn.CSharp.Services.Completion
                     || newPosition >= (change.TextChange.Span.Start + newText.Length))
                 {
                     return (prependText + newText.Substring(newOffset), InsertTextFormat.PlainText);
-                }
-
-                if (newPosition < (originalPosition + newOffset))
-                {
-                    Debug.Fail($"Unknown case of attempting to move cursor before the text that needs to be cut off. Requested cutoff: {newOffset}. New Position: {newPosition}");
-                    // Gracefully handle as best we can in release
-                    return (newText.Substring(newOffset), InsertTextFormat.PlainText);
                 }
 
                 // Roslyn wants to move the cursor somewhere inside the result. Substring from the
